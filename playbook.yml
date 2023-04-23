@@ -1,0 +1,150 @@
+---
+- name: Installer les dépendances système
+  hosts: all
+  become: true
+  tasks:
+    - name: Update apt
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+    - name: Installer les dépendances système
+      apt:
+        name:
+          - software-properties-common
+          - apt-transport-https
+          - ca-certificates
+          - curl
+          - gnupg
+          - git
+          - apache2
+        state: present
+    - name: Download get-pip.py
+      get_url:
+        url: https://bootstrap.pypa.io/get-pip.py
+        dest: /tmp/get-pip.py
+
+    - name: Install pip
+      command: python3 /tmp/get-pip.py
+
+    - name: Install pymysql
+      pip:
+        name: pymysql
+        state: present
+
+    - name: Ajouter la clé GPG pour le dépôt PHP
+      apt_key:
+        url: https://packages.sury.org/php/apt.gpg
+        state: present
+
+    - name: add ppa repository
+      shell: yes "" | sudo add-apt-repository ppa:ondrej/php
+
+    - name: apt update
+      shell: sudo apt update
+
+    # - name: Add PHP repository
+    #   apt_repository:
+    #     repo: "deb https://packages.sury.org/php/ {{ ansible_distribution | lower }} main"
+    #     state: present
+    #     filename: "sury.org-php.list"
+    #     update_cache: yes
+    #   when: ansible_distribution == 'Ubuntu'
+
+    - name: Install PHP
+      apt:
+        name:
+          [
+            "php8.1",
+            "php8.1-cli",
+            "php8.1-mbstring",
+            "php8.1-xml",
+            "php8.1-common",
+            "php8.1-curl",
+            "php8.1-mysql",
+            "php8.1-zip",
+          ]
+        state: latest
+
+    - name: Install mysql-connector-python
+      become: true
+      pip:
+        name: mysql-connector-python
+        state: present
+
+    - name: Installer MariaDB
+      apt:
+        name: ["mariadb-server", "mariadb-client"]
+        state: latest
+
+    - name: Restart MariaDB 10.3
+      service: name=mysql state=restarted
+
+    - name: Start MariaDB
+      service: name=mysql
+        state=started
+
+    - name: Create user
+      shell: sudo mysql -e "CREATE USER 'epitech'@'localhost' IDENTIFIED BY 'password';"
+
+    - name: Give all privileges
+      shell: sudo mysql -e "GRANT ALL PRIVILEGES ON *.* TO 'epitech'@'localhost';"
+
+    - name: Create database
+      shell: sudo mysql -u epitech -ppassword -e "CREATE DATABASE ecommerce;"
+
+    - name: Connect to MariaDB
+      mysql_db:
+        login_host: 127.0.0.1
+        login_port: 3306
+        login_user: epitech
+        login_password: password
+        name: ecommerce
+
+    - name: Installer Composer
+      shell: curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
+
+    - name: Installer Symfony CLI
+      shell: curl -1sLf 'https://dl.cloudsmith.io/public/symfony/stable/setup.deb.sh' | sudo -E bash
+
+    - name: Install symfony
+      apt:
+        name: symfony-cli
+        state: present
+
+    - name: Git clone
+      git:
+        repo: https://github.com/guileveque/ecommerce_public.git
+        dest: /var/www/ecommerce
+        version: master
+
+    - name: Composer update
+      shell: cd /var/www/ecommerce/app && yes | sudo composer update
+    - name: Composer install
+      shell: cd /var/www/ecommerce/app && yes | sudo composer install
+    - name: Generate key
+      shell: cd /var/www/ecommerce/app && php bin/console lexik:jwt:generate-keypair --overwrite
+    - name: Make migration
+      shell: cd /var/www/ecommerce/app && sudo php bin/console make:migration
+    - name: Migrate
+      shell: cd /var/www/ecommerce/app && yes | sudo php bin/console doctrine:migrations:migrate
+
+    # - name: enable ufw
+    #   shell: y | sudo ufw enable
+    # - name: allow 8000
+    #   shell: sudo ufw allow 8000
+
+    # - name: ufw reload
+    #   shell: sudo ufw reload
+    # shell: curl -sS https://get.symfony.com/cli/installer | bash -- --install-dir=/usr/local/bin --filename=symfony
+
+    # - name: Moove element
+    #   shell: sudo mv /home/ubuntu/.symfony5/bin/symfony /usr/local/bin/symfony
+
+    #   shell: sudo mv /home/ubuntu/T-WEB-600-MAR-6-1-ecommerce-guillaume.leveque/ /var/www/ecommerce
+
+    # - name: Make migration and composer install && clear key
+    # shell: cd /var/www/ecommerce/app && php bin/console lexik:jwt:generate-keypair --overwrite
+    # shell: cd /var/www/ecommerce/app && composer update
+    # shell: cd /var/www/ecommerce/app && composer install
+    # shell: cd /var/www/ecommerce/app && php bin/console make:migration
+    # shell: cd /var/www/ecommerce/app && php bin/console doctrine:migrations:migrate -yes
